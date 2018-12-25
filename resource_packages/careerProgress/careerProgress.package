@@ -1,0 +1,11 @@
+mod = [
+	"careerProgress"
+]
+
+package = [
+	"resource_packages/careerProgress/careerProgress"
+]
+
+lua = [
+	"scripts/mods/careerProgress/*"
+]
