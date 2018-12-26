@@ -64,7 +64,28 @@ mod:hook_origin(
 	LevelUnlockUtils,
 	"completed_level_difficulty_index",
 	function(statistics_db, player_stats_id, level_key)
+		-- original code for any error case
+		local difficulty_index = 0
+		local level_difficulty_name = LevelDifficultyDBNames[level_key]
+		if level_difficulty_name then
+			difficulty_index =
+				statistics_db:get_persistent_stat(player_stats_id, "completed_levels_difficulty", level_difficulty_name)
+		end
+
+		-- my code that takes career into account too
 		local career = mod:getCareer()
-		return mod:getDifficultyIndex(statistics_db, player_stats_id, level_key, career)
+		local status, result =
+			pcall(
+			function()
+				return mod:getDifficultyIndex(statistics_db, player_stats_id, level_key, career)
+			end
+		)
+		if status then
+			difficulty_index = result
+		else
+			-- this seems to be the case when starting a map
+			-- mod:echo("error " .. result)
+		end
+		return difficulty_index
 	end
 )
