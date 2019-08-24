@@ -27,10 +27,11 @@ end
 
 mod.getCareer = function()
 	-- get career id in order to check difficulty against it
-	local player_manager = Managers.player
-	--		self._achievement_manager:setup_achievement_data()
-	local player = player_manager:local_player()
+	local player = Managers.player:local_player()
 	local profile_index = player:profile_index()
+	if not profile_index then
+		return
+	end
 	local profile = SPProfiles[profile_index]
 	local careers = profile.careers
 	local career_index = player:career_index()
@@ -40,21 +41,20 @@ end
 
 mod.getDifficultyIndex = function(self, statistics_db, stats_id, level_key, career)
 	-- get the difficulty index dependent on current selected career
-	local completed_difficulty_index = 0
+	local completed_difficulty_index =
+		LevelUnlockUtils.completed_level_difficulty_index(statistics_db, stats_id, level_key, true)
 	-- get all difficulties for this level
 	local difficulty_manager = Managers.state.difficulty
 
-	if not difficulty_manager then
-		completed_difficulty_index = LevelUnlockUtils.completed_level_difficulty_index(statistics_db, stats_id, level_key)
-	else
-		local difficulties = difficulty_manager:get_level_difficulties(level_key)
-		if career then
-			local completed = mod:check_level_list_difficulty(statistics_db, stats_id, level_key, r, career)
-			if completed then
-				completed_difficulty_index = completed
+	if difficulty_manager and career then
+		local status, result =
+			pcall(
+			function()
+				return mod:check_level_list_difficulty(statistics_db, stats_id, level_key, r, career)
 			end
-		else
-			completed_difficulty_index = LevelUnlockUtils.completed_level_difficulty_index(statistics_db, stats_id, level_key)
+		)
+		if status and result then
+			completed_difficulty_index = result
 		end
 	end
 	return completed_difficulty_index
@@ -63,7 +63,7 @@ end
 mod:hook_origin(
 	LevelUnlockUtils,
 	"completed_level_difficulty_index",
-	function(statistics_db, player_stats_id, level_key)
+	function(statistics_db, player_stats_id, level_key, ignoreCareer)
 		-- original code for any error case
 		local difficulty_index = 0
 		local level_difficulty_name = LevelDifficultyDBNames[level_key]
@@ -72,20 +72,18 @@ mod:hook_origin(
 				statistics_db:get_persistent_stat(player_stats_id, "completed_levels_difficulty", level_difficulty_name)
 		end
 
-		-- my code that takes career into account too
-		local career = mod:getCareer()
-		local status, result =
-			pcall(
-			function()
-				return mod:getDifficultyIndex(statistics_db, player_stats_id, level_key, career)
-			end
-		)
-		if status then
-			difficulty_index = result
-		else
-			-- this seems to be the case when starting a map
-			-- mod:echo("error " .. result)
+		-- conditionally return with this original code
+		if ignoreCareer then
+			return difficulty_index
 		end
+
+		-- my code that takes career into account too
+		-- try to get the career
+		local career = mod:getCareer()
+		if career then
+			difficulty_index = mod:getDifficultyIndex(statistics_db, player_stats_id, level_key, career)
+		end
+
 		return difficulty_index
 	end
 )
